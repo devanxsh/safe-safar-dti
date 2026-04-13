@@ -1,3 +1,15 @@
 export function TooltipProvider({ children }: any) {
   return <>{children}</>;
 }
+
+export function Tooltip({ children }: any) {
+  return <>{children}</>;
+}
+
+export function TooltipTrigger({ children }: any) {
+  return <>{children}</>;
+}
+
+export function TooltipContent({ children }: any) {
+  return <>{children}</>;
+}
