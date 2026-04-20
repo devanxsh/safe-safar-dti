@@ -19,6 +19,48 @@ export interface Route {
   occupancy: 'low' | 'medium' | 'high';
 }
 
+export const ROUTES: Route[] = [
+  {
+    id: 'route-15',
+    number: 'Route 15',
+    name: 'City Center - Medical College',
+    from: 'Central Bus Station',
+    to: 'Medical College',
+    duration: 25,
+    distance: '8.2 km',
+    frequency: 'Every 10 min',
+    activeBuses: 3,
+    nextArrival: 3,
+    occupancy: 'medium'
+  },
+  {
+    id: 'route-22',
+    number: 'Route 22',
+    name: 'Railway Station - IT Park',
+    from: 'Railway Station',
+    to: 'IT Park',
+    duration: 35,
+    distance: '12.5 km',
+    frequency: 'Every 15 min',
+    activeBuses: 2,
+    nextArrival: 8,
+    occupancy: 'high'
+  },
+  {
+    id: 'route-8',
+    number: 'Route 8',
+    name: 'Market Square - University',
+    from: 'Market Square',
+    to: 'University Campus',
+    duration: 20,
+    distance: '6.8 km',
+    frequency: 'Every 8 min',
+    activeBuses: 4,
+    nextArrival: 2,
+    occupancy: 'low'
+  }
+];
+
 interface RouteSelectorProps {
   onRouteSelect: (route: Route) => void;
   selectedRoute?: string;
@@ -28,49 +70,7 @@ export default function RouteSelector({ onRouteSelect, selectedRoute }: RouteSel
   const [searchQuery, setSearchQuery] = useState('');
   const [showRoutes, setShowRoutes] = useState(false);
 
-  const routes: Route[] = [
-    {
-      id: 'route-15',
-      number: 'Route 15',
-      name: 'City Center - Medical College',
-      from: 'Central Bus Station',
-      to: 'Medical College',
-      duration: 25,
-      distance: '8.2 km',
-      frequency: 'Every 10 min',
-      activeBuses: 3,
-      nextArrival: 3,
-      occupancy: 'medium'
-    },
-    {
-      id: 'route-22',
-      number: 'Route 22',
-      name: 'Railway Station - IT Park',
-      from: 'Railway Station',
-      to: 'IT Park',
-      duration: 35,
-      distance: '12.5 km',
-      frequency: 'Every 15 min',
-      activeBuses: 2,
-      nextArrival: 8,
-      occupancy: 'high'
-    },
-    {
-      id: 'route-8',
-      number: 'Route 8',
-      name: 'Market Square - University',
-      from: 'Market Square',
-      to: 'University Campus',
-      duration: 20,
-      distance: '6.8 km',
-      frequency: 'Every 8 min',
-      activeBuses: 4,
-      nextArrival: 2,
-      occupancy: 'low'
-    }
-  ];
-
-  const filteredRoutes = routes.filter(route =>
+  const filteredRoutes = ROUTES.filter(route =>
     route.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     route.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
     route.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -109,7 +109,7 @@ export default function RouteSelector({ onRouteSelect, selectedRoute }: RouteSel
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">Popular Routes</h3>
           <div className="grid gap-2">
-            {routes.slice(0, 2).map((route) => (
+            {ROUTES.slice(0, 2).map((route) => (
               <Card
                 key={route.id}
                 className={`transit-card cursor-pointer hover:shadow-md transition-all ${

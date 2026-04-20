@@ -3,7 +3,7 @@ import { Bell, LogOut, Signal, SignalHigh, ShieldAlert, Sparkles } from "lucide-
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import RouteSelector, { type Route } from "@/components/RouteSelector";
+import RouteSelector, { ROUTES, type Route } from "@/components/RouteSelector";
 import MapView from "@/components/MainView";
 import BusTracker from "@/components/BusTracker";
 import { useAuthStore } from "@/store/auth-store";
@@ -11,13 +11,14 @@ import { useToast } from "@/hooks/use-toast";
 
 type MainTab = "discover" | "map" | "tracker";
 
-const SAFETY_TIPS = [
-  "Stay in well-lit waiting areas at night.",
-  "Share your live trip details with family.",
-  "Keep emergency numbers accessible while traveling.",
-];
-
 export const MainApp = () => {
+  const SAFETY_TIPS = [
+    "Stay in well-lit waiting areas at night.",
+    "Share your live trip details with family.",
+    "Keep emergency numbers accessible while traveling.",
+  ];
+  const SAFETY_TIP_ROTATION_INTERVAL_MS = 6000;
+
   const [activeTab, setActiveTab] = useState<MainTab>("discover");
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [networkOnline, setNetworkOnline] = useState(navigator.onLine);
@@ -41,10 +42,10 @@ export const MainApp = () => {
   useEffect(() => {
     const interval = window.setInterval(() => {
       setSafetyTipIndex((prev) => (prev + 1) % SAFETY_TIPS.length);
-    }, 6000);
+    }, SAFETY_TIP_ROTATION_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
-  }, []);
+  }, [SAFETY_TIPS.length, SAFETY_TIP_ROTATION_INTERVAL_MS]);
 
   const greetingName = useMemo(() => {
     if (!user?.name) return "Commuter";
@@ -61,21 +62,22 @@ export const MainApp = () => {
   };
 
   const handleBusSelect = (bus: { routeNumber: string }) => {
-    if (!selectedRoute || selectedRoute.number !== bus.routeNumber) {
-      setSelectedRoute({
-        id: bus.routeNumber.toLowerCase().replace(/\s+/g, "-"),
-        number: bus.routeNumber,
-        name: `${bus.routeNumber} Live Route`,
-        from: "Current Position",
-        to: "Destination",
-        duration: 25,
-        distance: "8.0 km",
-        frequency: "Every 10 min",
-        activeBuses: 1,
-        nextArrival: 3,
-        occupancy: "medium",
-      });
+    if (selectedRoute && selectedRoute.number === bus.routeNumber) {
+      setActiveTab("tracker");
+      return;
     }
+
+    const routeFromCatalog = ROUTES.find((route) => route.number === bus.routeNumber);
+    if (!routeFromCatalog) {
+      toast({
+        title: "Route details unavailable",
+        description: "Please select this route from Discover to start detailed tracking.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedRoute(routeFromCatalog);
     setActiveTab("tracker");
   };
 
