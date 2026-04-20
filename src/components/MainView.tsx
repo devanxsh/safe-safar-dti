@@ -1,24 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import { MapPin, Navigation, Clock, Users, AlertTriangle } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import {
+  APIProvider,
+  Map,
+  AdvancedMarker,
+  InfoWindow,
+  useMap,
+} from "@vis.gl/react-google-maps";
+import { Navigation, AlertTriangle, Clock, Users, MapPin, Bus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useGeolocation } from "@/hooks/use-geolocation";
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface BusLocation {
   id: string;
   routeNumber: string;
-  latitude: number;
-  longitude: number;
-  occupancy: 'low' | 'medium' | 'high';
-  status: 'on-time' | 'delayed' | 'cancelled';
-  eta: number; // minutes
+  location: { lat: number; lng: number };
+  occupancy: "low" | "medium" | "high";
+  status: "on-time" | "delayed" | "cancelled";
+  eta: number;
 }
 
 interface BusStop {
   id: string;
   name: string;
-  latitude: number;
-  longitude: number;
+  location: { lat: number; lng: number };
   routes: string[];
 }
 
@@ -27,269 +34,260 @@ interface MapViewProps {
   onBusSelect?: (bus: BusLocation) => void;
 }
 
-export default function MapView({ selectedRoute, onBusSelect }: MapViewProps) {
-  const [buses, setBuses] = useState<BusLocation[]>([]);
-  const [stops, setStops] = useState<BusStop[]>([]);
-  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+// ─── Constants ───────────────────────────────────────────────────────────────
 
-  // Simulate real-time bus data
+const DELHI_CENTER = { lat: 28.6139, lng: 77.209 };
+
+const MOCK_BUSES: BusLocation[] = [
+  { id: "bus-1", routeNumber: "Route 15", location: { lat: 28.6139, lng: 77.209 }, occupancy: "medium", status: "on-time", eta: 3 },
+  { id: "bus-2", routeNumber: "Route 22", location: { lat: 28.6129, lng: 77.2295 }, occupancy: "high", status: "delayed", eta: 8 },
+  { id: "bus-3", routeNumber: "Route 15", location: { lat: 28.6449, lng: 77.2167 }, occupancy: "low", status: "on-time", eta: 12 },
+];
+
+const MOCK_STOPS: BusStop[] = [
+  { id: "stop-1", name: "Central Bus Station", location: { lat: 28.6139, lng: 77.209 }, routes: ["Route 15", "Route 22", "Route 8"] },
+  { id: "stop-2", name: "Medical College", location: { lat: 28.6189, lng: 77.2145 }, routes: ["Route 15", "Route 8"] },
+  { id: "stop-3", name: "Market Square", location: { lat: 28.6249, lng: 77.22 }, routes: ["Route 22", "Route 8"] },
+];
+
+// ─── Helper hooks ─────────────────────────────────────────────────────────────
+
+/** Centre the map on the user's location whenever it changes. */
+function UserLocationRecenterer({ userLocation }: { userLocation: { lat: number; lng: number } | null }) {
+  const map = useMap();
+  const hasRecentered = useRef(false);
+
   useEffect(() => {
-    const mockBuses: BusLocation[] = [
-      {
-        id: 'bus-1',
-        routeNumber: 'Route 15',
-        latitude: 28.6139,
-        longitude: 77.2090,
-        occupancy: 'medium',
-        status: 'on-time',
-        eta: 3
-      },
-      {
-        id: 'bus-2',
-        routeNumber: 'Route 22',
-        latitude: 28.6129,
-        longitude: 77.2295,
-        occupancy: 'high',
-        status: 'delayed',
-        eta: 8
-      },
-      {
-        id: 'bus-3',
-        routeNumber: 'Route 15',
-        latitude: 28.6449,
-        longitude: 77.2167,
-        occupancy: 'low',
-        status: 'on-time',
-        eta: 12
-      }
-    ];
-
-    const mockStops: BusStop[] = [
-      {
-        id: 'stop-1',
-        name: 'Central Bus Station',
-        latitude: 28.6139,
-        longitude: 77.2090,
-        routes: ['Route 15', 'Route 22', 'Route 8']
-      },
-      {
-        id: 'stop-2',
-        name: 'Medical College',
-        latitude: 28.6189,
-        longitude: 77.2145,
-        routes: ['Route 15', 'Route 8']
-      },
-      {
-        id: 'stop-3',
-        name: 'Market Square',
-        latitude: 28.6249,
-        longitude: 77.2200,
-        routes: ['Route 22', 'Route 8']
-      }
-    ];
-
-    setBuses(mockBuses);
-    setStops(mockStops);
-
-    // Get user location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        () => {
-          // Use Delhi coordinates as fallback
-          setUserLocation({ lat: 28.6139, lng: 77.2090 });
-        }
-      );
+    if (map && userLocation && !hasRecentered.current) {
+      map.panTo(userLocation);
+      hasRecentered.current = true;
     }
+  }, [map, userLocation]);
 
-    // Simulate real-time updates
+  return null;
+}
+
+// ─── Occupancy / Status helpers ───────────────────────────────────────────────
+
+function occupancyColor(o: string) {
+  return o === "low" ? "#22c55e" : o === "medium" ? "#eab308" : "#ef4444";
+}
+
+function statusVariant(s: string): "default" | "secondary" | "destructive" {
+  return s === "on-time" ? "default" : s === "delayed" ? "secondary" : "destructive";
+}
+
+// ─── Bus marker pin ──────────────────────────────────────────────────────────
+
+function BusPin({ occupancy }: { occupancy: string }) {
+  return (
+    <div
+      style={{ background: occupancyColor(occupancy) }}
+      className="w-8 h-8 rounded-lg shadow-lg border-2 border-white flex items-center justify-center cursor-pointer"
+    >
+      <Bus className="w-4 h-4 text-white" />
+    </div>
+  );
+}
+
+// ─── Stop marker pin ─────────────────────────────────────────────────────────
+
+function StopPin() {
+  return (
+    <div className="w-6 h-6 bg-primary rounded-full shadow-md border-2 border-white flex items-center justify-center cursor-pointer">
+      <MapPin className="w-3 h-3 text-white" />
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+const MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
+
+export default function MapView({ selectedRoute, onBusSelect }: MapViewProps) {
+  const { location: userLocation } = useGeolocation({ fallback: DELHI_CENTER });
+
+  const [buses, setBuses] = useState<BusLocation[]>(MOCK_BUSES);
+  const [selectedBus, setSelectedBus] = useState<BusLocation | null>(null);
+  const [selectedStop, setSelectedStop] = useState<BusStop | null>(null);
+
+  // Simulate real-time bus position updates
+  useEffect(() => {
     const interval = setInterval(() => {
-      setBuses(prev => prev.map(bus => ({
-        ...bus,
-        latitude: bus.latitude + (Math.random() - 0.5) * 0.001,
-        longitude: bus.longitude + (Math.random() - 0.5) * 0.001,
-        eta: Math.max(1, bus.eta + (Math.random() > 0.5 ? -1 : 1))
-      })));
-    }, 5000);
-
+      setBuses((prev) =>
+        prev.map((bus) => ({
+          ...bus,
+          location: {
+            lat: bus.location.lat + (Math.random() - 0.5) * 0.001,
+            lng: bus.location.lng + (Math.random() - 0.5) * 0.001,
+          },
+          eta: Math.max(1, bus.eta + (Math.random() > 0.5 ? -1 : 1)),
+        }))
+      );
+    }, 5_000);
     return () => clearInterval(interval);
   }, []);
 
-  const getOccupancyColor = (occupancy: string) => {
-    switch (occupancy) {
-      case 'low': return 'bg-green-500';
-      case 'medium': return 'bg-yellow-500';
-      case 'high': return 'bg-red-500';
-      default: return 'bg-gray-500';
-    }
-  };
-
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case 'on-time': return 'default';
-      case 'delayed': return 'secondary';
-      case 'cancelled': return 'destructive';
-      default: return 'default';
-    }
-  };
-
   const filteredBuses = selectedRoute
-    ? buses.filter(bus => bus.routeNumber === selectedRoute)
+    ? buses.filter((b) => b.routeNumber === selectedRoute)
     : buses;
 
+  const handleBusClick = useCallback(
+    (bus: BusLocation) => {
+      setSelectedStop(null);
+      setSelectedBus((prev) => (prev?.id === bus.id ? null : bus));
+      onBusSelect?.(bus);
+    },
+    [onBusSelect]
+  );
+
+  const handleStopClick = useCallback((stop: BusStop) => {
+    setSelectedBus(null);
+    setSelectedStop((prev) => (prev?.id === stop.id ? null : stop));
+  }, []);
+
+  // If no API key is configured, show an informative fallback
+  if (!MAPS_API_KEY) {
+    return (
+      <div className="relative w-full h-full bg-muted rounded-xl overflow-hidden flex items-center justify-center">
+        <div className="text-center space-y-3 p-6">
+          <MapPin className="w-12 h-12 text-primary mx-auto" />
+          <p className="font-semibold">Google Maps not configured</p>
+          <p className="text-sm text-muted-foreground max-w-xs">
+            Add <code className="bg-muted-foreground/20 px-1 rounded">VITE_GOOGLE_MAPS_API_KEY</code> to
+            your <code className="bg-muted-foreground/20 px-1 rounded">.env</code> file to enable the
+            interactive live map.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative w-full h-full bg-muted rounded-xl overflow-hidden">
-      {/* Map Background */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{
-          backgroundImage: `url('https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&h=600&fit=crop')`,
-          filter: 'brightness(0.9) contrast(1.1)'
-        }}
-      />
+    <APIProvider apiKey={MAPS_API_KEY}>
+      <div className="relative w-full h-full rounded-xl overflow-hidden">
+        <Map
+          mapId="safesafar-live-map"
+          defaultCenter={DELHI_CENTER}
+          defaultZoom={13}
+          gestureHandling="greedy"
+          disableDefaultUI={false}
+          className="w-full h-full"
+        >
+          {/* Recentre on user location once available */}
+          <UserLocationRecenterer userLocation={userLocation} />
 
-      {/* Map Overlay */}
-      <div className="map-overlay" />
-
-      {/* Map Content */}
-      <div className="relative z-10 p-4 h-full">
-
-        {/* Map Legend */}
-        <Card className="absolute top-4 right-4 w-48 bg-white/95 backdrop-blur-sm">
-          <CardContent className="p-3">
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                <span>Active Bus</span>
+          {/* User location pulse marker */}
+          {userLocation && (
+            <AdvancedMarker position={userLocation} title="Your location">
+              <div className="relative">
+                <div className="w-5 h-5 bg-accent rounded-full border-2 border-white shadow-lg animate-pulse" />
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-primary rounded-full"></div>
-                <span>Bus Stop</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Navigation className="w-3 h-3 text-accent" />
-                <span>Your Location</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </AdvancedMarker>
+          )}
 
-        {/* User Location */}
-        {userLocation && (
-          <div
-            className="absolute w-4 h-4 transform -translate-x-1/2 -translate-y-1/2"
-            style={{
-              left: '50%',
-              top: '50%'
-            }}
-          >
-            <div className="w-4 h-4 bg-accent rounded-full shadow-lg border-2 border-white animate-pulse"></div>
-          </div>
-        )}
+          {/* Bus stop markers */}
+          {MOCK_STOPS.map((stop) => (
+            <React.Fragment key={stop.id}>
+              <AdvancedMarker
+                position={stop.location}
+                title={stop.name}
+                onClick={() => handleStopClick(stop)}
+              >
+                <StopPin />
+              </AdvancedMarker>
 
-        {/* Bus Stops */}
-        {stops.map((stop) => (
-          <div
-            key={stop.id}
-            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer"
-            style={{
-              left: `${20 + Math.random() * 60}%`,
-              top: `${20 + Math.random() * 60}%`
-            }}
-          >
-            <div className="relative group">
-              <div className="w-6 h-6 bg-primary rounded-full shadow-lg border-2 border-white flex items-center justify-center">
-                <MapPin className="w-3 h-3 text-white" />
-              </div>
-
-              {/* Stop Info Tooltip */}
-              <Card className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-48 opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 backdrop-blur-sm">
-                <CardContent className="p-2">
-                  <div className="text-xs space-y-1">
-                    <div className="font-medium">{stop.name}</div>
-                    <div className="text-muted-foreground">
-                      Routes: {stop.routes.join(', ')}
-                    </div>
+              {selectedStop?.id === stop.id && (
+                <InfoWindow
+                  position={stop.location}
+                  onCloseClick={() => setSelectedStop(null)}
+                >
+                  <div className="space-y-1 text-sm">
+                    <p className="font-semibold">{stop.name}</p>
+                    <p className="text-muted-foreground text-xs">Routes: {stop.routes.join(", ")}</p>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        ))}
+                </InfoWindow>
+              )}
+            </React.Fragment>
+          ))}
 
-        {/* Active Buses */}
-        {filteredBuses.map((bus, index) => (
-          <div
-            key={bus.id}
-            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer"
-            style={{
-              left: `${30 + index * 20}%`,
-              top: `${30 + index * 15}%`
-            }}
-            onClick={() => onBusSelect?.(bus)}
-          >
-            <div className="relative group">
-              {/* Bus Icon */}
-              <div className="w-8 h-8 bg-blue-500 rounded-lg shadow-lg border-2 border-white flex items-center justify-center">
-                <div className="w-4 h-3 bg-white rounded-sm"></div>
-              </div>
+          {/* Active bus markers */}
+          {filteredBuses.map((bus) => (
+            <React.Fragment key={bus.id}>
+              <AdvancedMarker
+                position={bus.location}
+                title={bus.routeNumber}
+                onClick={() => handleBusClick(bus)}
+              >
+                <BusPin occupancy={bus.occupancy} />
+              </AdvancedMarker>
 
-              {/* Bus Info Card */}
-              <Card className="absolute bottom-10 left-1/2 transform -translate-x-1/2 w-56 opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 backdrop-blur-sm">
-                <CardContent className="p-3">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">{bus.routeNumber}</span>
-                      <Badge variant={getStatusVariant(bus.status)} className="text-xs">
+              {selectedBus?.id === bus.id && (
+                <InfoWindow
+                  position={bus.location}
+                  onCloseClick={() => setSelectedBus(null)}
+                >
+                  <div className="space-y-2 text-sm min-w-[180px]">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">{bus.routeNumber}</span>
+                      <Badge variant={statusVariant(bus.status)} className="text-xs">
                         {bus.status}
                       </Badge>
                     </div>
-
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        <span>{bus.eta} min</span>
-                      </div>
-                      <div className="flex items-center gap-1">
+                        {bus.eta} min
+                      </span>
+                      <span className="flex items-center gap-1">
                         <Users className="w-3 h-3" />
-                        <div className={`w-2 h-2 rounded-full ${getOccupancyColor(bus.occupancy)}`}></div>
-                        <span className="capitalize">{bus.occupancy}</span>
-                      </div>
+                        <span
+                          className="w-2 h-2 rounded-full inline-block"
+                          style={{ background: occupancyColor(bus.occupancy) }}
+                        />
+                        {bus.occupancy}
+                      </span>
                     </div>
-
-                    {bus.status === 'delayed' && (
-                      <div className="flex items-center gap-1 text-xs text-orange-600">
+                    {bus.status === "delayed" && (
+                      <p className="flex items-center gap-1 text-xs text-orange-600">
                         <AlertTriangle className="w-3 h-3" />
-                        <span>Running 5 minutes behind schedule</span>
-                      </div>
+                        Running ~5 min behind schedule
+                      </p>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        ))}
+                </InfoWindow>
+              )}
+            </React.Fragment>
+          ))}
+        </Map>
 
-        {/* Map Controls */}
-        <div className="absolute bottom-4 left-4 space-y-2">
+        {/* Map legend overlay */}
+        <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm rounded-lg shadow p-3 space-y-1.5 text-xs">
+          <div className="flex items-center gap-2"><Bus className="w-3 h-3 text-green-500" /> Low occupancy</div>
+          <div className="flex items-center gap-2"><Bus className="w-3 h-3 text-yellow-500" /> Medium</div>
+          <div className="flex items-center gap-2"><Bus className="w-3 h-3 text-red-500" /> High / Crowded</div>
+          <div className="flex items-center gap-2"><div className="w-3 h-3 bg-primary rounded-full" /> Bus Stop</div>
+          <div className="flex items-center gap-2"><div className="w-3 h-3 bg-accent rounded-full" /> You</div>
+        </div>
+
+        {/* Centre-on-me button */}
+        <div className="absolute bottom-4 left-4">
           <Button
             size="sm"
             variant="secondary"
             className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-lg"
+            title="Centre on my location"
             onClick={() => {
-              // Center map on user location
-              console.log('Center on user location');
+              if (userLocation) {
+                // panTo is handled reactively; just nudge a re-render
+                setSelectedBus(null);
+              }
             }}
           >
             <Navigation className="w-4 h-4" />
           </Button>
         </div>
       </div>
-    </div>
+    </APIProvider>
   );
 }

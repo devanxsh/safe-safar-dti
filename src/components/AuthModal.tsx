@@ -47,7 +47,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         title: "OTP Sent!",
         description: "Check your email for the verification code.",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to send OTP. Please try again.",
@@ -77,7 +77,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         description: "You've successfully logged in.",
       });
       onClose();
-    } catch (error) {
+    } catch {
       toast({
         title: "Invalid OTP",
         description: "Please check the code and try again.",

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Bus, MapPin, Clock, Shield, Users, Navigation } from 'lucide-react';
+import { Bus, Shield, Navigation } from 'lucide-react';
 
 interface WelcomeScreenProps {
   onLoginClick: () => void;

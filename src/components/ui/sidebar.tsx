@@ -1,16 +1,13 @@
 import * as React from "react"
-
-// SAFE FALLBACK COMPONENTS (NO DEPENDENCY ISSUES)
-const TooltipProvider = ({ children }: any) => <>{children}</>
-const Tooltip = ({ children }: any) => <>{children}</>
-const TooltipTrigger = ({ children }: any) => <>{children}</>
-const TooltipContent = ({ children }: any) => <>{children}</>
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 type SidebarContextProps = {
   open: boolean
   setOpen: (open: boolean) => void
   toggleSidebar: () => void
 }
+
+interface ChildrenProps { children?: React.ReactNode }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
 
@@ -22,7 +19,7 @@ export function useSidebar() {
   return context
 }
 
-export function SidebarProvider({ children }: any) {
+export function SidebarProvider({ children }: ChildrenProps) {
   const [open, setOpen] = React.useState(true)
 
   const toggleSidebar = () => setOpen(!open)
@@ -34,7 +31,7 @@ export function SidebarProvider({ children }: any) {
   )
 }
 
-export function Sidebar({ children }: any) {
+export function Sidebar({ children }: ChildrenProps) {
   const { open } = useSidebar()
 
   return (
@@ -63,19 +60,19 @@ export function SidebarTrigger() {
   )
 }
 
-export function SidebarContent({ children }: any) {
+export function SidebarContent({ children }: ChildrenProps) {
   return <div>{children}</div>
 }
 
-export function SidebarMenu({ children }: any) {
+export function SidebarMenu({ children }: ChildrenProps) {
   return <ul style={{ listStyle: "none", padding: 0 }}>{children}</ul>
 }
 
-export function SidebarMenuItem({ children }: any) {
+export function SidebarMenuItem({ children }: ChildrenProps) {
   return <li style={{ padding: "8px 0" }}>{children}</li>
 }
 
-export function SidebarMenuButton({ children }: any) {
+export function SidebarMenuButton({ children }: ChildrenProps) {
   return (
     <button
       style={{

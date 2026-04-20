@@ -11,14 +11,14 @@ import { useToast } from "@/hooks/use-toast";
 
 type MainTab = "discover" | "map" | "tracker";
 
-export const MainApp = () => {
-  const SAFETY_TIPS = [
-    "Stay in well-lit waiting areas at night.",
-    "Share your live trip details with family.",
-    "Keep emergency numbers accessible while traveling.",
-  ];
-  const SAFETY_TIP_ROTATION_INTERVAL_MS = 6000;
+const SAFETY_TIPS = [
+  "Stay in well-lit waiting areas at night.",
+  "Share your live trip details with family.",
+  "Keep emergency numbers accessible while traveling.",
+];
+const SAFETY_TIP_ROTATION_INTERVAL_MS = 6000;
 
+export const MainApp = () => {
   const [activeTab, setActiveTab] = useState<MainTab>("discover");
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [networkOnline, setNetworkOnline] = useState(navigator.onLine);
@@ -45,7 +45,7 @@ export const MainApp = () => {
     }, SAFETY_TIP_ROTATION_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
-  }, [SAFETY_TIPS.length, SAFETY_TIP_ROTATION_INTERVAL_MS]);
+  }, []);
 
   const greetingName = useMemo(() => {
     if (!user?.name) return "Commuter";

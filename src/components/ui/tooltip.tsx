@@ -1,15 +1,19 @@
-export function TooltipProvider({ children }: any) {
+import { type ReactNode } from "react";
+
+interface ChildrenProps { children?: ReactNode }
+
+export function TooltipProvider({ children }: ChildrenProps) {
   return <>{children}</>;
 }
 
-export function Tooltip({ children }: any) {
+export function Tooltip({ children }: ChildrenProps) {
   return <>{children}</>;
 }
 
-export function TooltipTrigger({ children }: any) {
+export function TooltipTrigger({ children }: ChildrenProps) {
   return <>{children}</>;
 }
 
-export function TooltipContent({ children }: any) {
+export function TooltipContent({ children }: ChildrenProps) {
   return <>{children}</>;
 }

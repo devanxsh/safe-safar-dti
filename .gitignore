@@ -1,3 +1,4 @@
+# Android / Gradle (pre-existing)
 *.iml
 .gradle
 /local.properties
@@ -13,3 +14,24 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Node / npm
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+server/dist/
+
+# Environment variables — NEVER commit real secrets
+.env
+.env.local
+.env.*.local
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# OS files
+Thumbs.db
