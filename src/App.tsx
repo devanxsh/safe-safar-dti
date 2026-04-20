@@ -1,8 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-
-// TEMP SAFE IMPORTS (to avoid build crash)
-const HomePage = () => <h1>Home Page</h1>;
-const NotFoundPage = () => <h1>404 Not Found</h1>;
+import HomePage from "@/pages/HomePage";
+import NotFoundPage from "@/pages/NotFound";
 
 function App() {
   return (
